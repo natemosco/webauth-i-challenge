@@ -4,12 +4,13 @@ const bcrypt = require("bcryptjs");
 
 const model = require("./users-model");
 const router = express.Router();
+const restricted = require("./restricted-middleware");
 
 router.get("/", (req, res) => {
   res.status(200).json({ api: "response from api working" });
 });
 
-router.get("/users", (req, res) => {
+router.get("/users", restricted, (req, res) => {
   model
     .findUsers()
     .then(allUsers => {
@@ -22,6 +23,23 @@ router.get("/users", (req, res) => {
         .status(500)
         .json({ errorMessage: "internal error fetching all Users." });
     });
+});
+router.get("/logout", (req, res) => {
+  if (req.session) {
+    req.session.destroy(err => {
+      if (err) {
+        res.json({ message: "we could not log you out" });
+      } else {
+        res.status(200).json({ message: "logout successful" });
+      }
+    });
+  } else {
+    res
+      .status(200)
+      .json({
+        message: "you were not logged in. logout unable to be performed"
+      });
+  }
 });
 router.post("/register", (req, res) => {
   let newUser = req.body;
@@ -43,10 +61,14 @@ router.post("/register", (req, res) => {
 });
 router.post("/login", (req, res) => {
   const { password, username } = req.body;
+  console.log(req.body, "req.body");
   model
     .findBy({ username })
+    .first()
     .then(user => {
+      console.log(user, "user");
       if (user && bcrypt.compareSync(password, user.password)) {
+        req.session.user = user;
         res.status(200).json(user);
       } else {
         res.status(401).json({ errorMessage: "Invalid Credentials" });
